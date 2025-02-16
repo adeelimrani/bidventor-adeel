@@ -3,7 +3,7 @@ import { CheckUser } from "@/lib/checkuser";
 import prisma from "@/utils/prisma";
 import { User } from "@prisma/client";
 
-async function getUsers() {
+async function getBlockUser() {
   const user = await CheckUser();
   
   const userId = user?.id
@@ -13,7 +13,7 @@ async function getUsers() {
   }
   try {
     const getUsers= await prisma.user.findMany({
-      where: { blocked: false },
+      where: { blocked: true },
     });
     
     return {response: getUsers};
@@ -22,4 +22,4 @@ async function getUsers() {
   }
   }
 
-  export default getUsers;
+  export default getBlockUser;

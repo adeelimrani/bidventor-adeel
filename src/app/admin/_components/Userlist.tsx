@@ -1,19 +1,25 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
-import { useState } from "react"
+import blockUsers from "@/actions/blockUser";
+import updateRole from "@/actions/updateRole";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  TableCell,
+  TableRow
+} from "@/components/ui/table";
+import { useState } from "react";
+import { toast } from "sonner";
 
-interface User {
-  email: string
-  // Add other user properties as needed
-}
 
-export default function UserList({ users }: { users: User }) {
+const roles = ["Admin", "Manager", "User"];
+
+export default function UserList({ users }: any) {
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle")
 
   const generateDynamicMetrics = () => {
-    const optimizations = Math.floor(Math.random() * 20) + 1 // Random number between 1 and 20
+    const optimizations = Math.floor(Math.random() * 20) + 1 //Random number between 1 and 20
 
     return {
       optimizations,
@@ -23,6 +29,8 @@ export default function UserList({ users }: { users: User }) {
   const sendEmail = async () => {
     setLoading(true)
     try {
+    toast.loading("Sending mail...")
+      
       const metrics = generateDynamicMetrics()
 
       const response = await fetch("/api/send-email", {
@@ -32,12 +40,13 @@ export default function UserList({ users }: { users: User }) {
         },
         body: JSON.stringify({
           to: users.email,
-          metrics, // Pass dynamic metrics to the API
+          metrics,// Pass dynamic metrics to the API
         }),
       })
 
-      if (!response.ok) throw new Error("Failed to send email")
-
+      if (!response.ok) toast.error("Failed to send email")
+        toast.dismiss()
+      toast.success("Successfully send email!")
       setStatus("success")
       setTimeout(() => setStatus("idle"), 3000)
     } catch (error) {
@@ -49,11 +58,59 @@ export default function UserList({ users }: { users: User }) {
     }
   }
 
+  async function toggleBlock(userId: string, blocked: boolean) {
+    toast.loading("Blocking/Unblocking...")
+    const updatedUser = await blockUsers(userId, !blocked)
+    if(updatedUser.response){
+      toast.dismiss()
+      toast.success("Successfully block user")
+    }else{
+      toast.dismiss()
+      toast.error("Failed to block user")
+    }
+    
+  }
+
+  async function changeRole(userId: string, newRole: string) {
+    toast.loading("Changing role...")
+    const changeRole = await updateRole(userId, newRole)
+    if(changeRole.response){
+      toast.dismiss()
+      toast.success("Successfully update user role")
+    }else{
+      toast.dismiss()
+      toast.error("Failed to update user role")
+    }
+  }
+
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-gray-700">{users.email}</span>
-      <p>5</p>
-      <div className="flex items-center gap-2">
+    <>
+    
+    <TableRow>
+      <TableCell className="font-medium">{users.email}</TableCell>
+      <TableCell >2</TableCell>
+      <TableCell >
+      <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="uppercase">
+                    {users.Role}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  {roles.map((role) => (
+                    <DropdownMenuItem
+                      key={role}
+                      onClick={() => changeRole(users.id, role.toLowerCase())}
+                      className={role.toLowerCase() === users.Role ? "font-bold text-orange-600 capitalize" : ""}
+                    >
+                      {role}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              </TableCell>
+      <TableCell>
+      <div className="flex justify-end items-end gap-2">
         <Button
           onClick={sendEmail}
           disabled={loading}
@@ -64,12 +121,15 @@ export default function UserList({ users }: { users: User }) {
         </Button>
 
         {status === "success" && (
-          <span className="text-sm text-green-500">Sent!</span>
+          <span className="text-sm text-center text-green-500">Sent!</span>
         )}
         {status === "error" && (
-          <span className="text-sm text-red-500">Error</span>
+          <span className="text-sm text-center text-red-500">Error</span>
         )}
+        <Button variant={'default'} size="sm" onClick={() => toggleBlock(users.id, users.blocked)}>{users.blocked ? "Unblock" : "Block"}</Button>
       </div>
-    </div>
+      </TableCell>
+    </TableRow>
+        </>
   )
 }

@@ -15,7 +15,11 @@ const Header =  async () => {
         <BarChart3 className="h-6 w-6" />
         <span>BidVentor</span>
       </Link>
-      <nav className="flex gap-4">
+      <nav className="flex justify-between gap-4">
+        <div className='flex justify-center gap-8 items-center'>
+        <Link href={'#pricing'}>Pricing</Link>
+        <Link href={'#'}>Blog</Link>
+        </div>
       <SignedOut>
               <Button variant="secondary" asChild><Link href={"/sign-in"}>Log In</Link></Button>
               <Button variant="default" asChild><Link href={"/sign-up"}>Get Started</Link></Button>

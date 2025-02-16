@@ -29,8 +29,9 @@ export const CheckUser = async () => {
             clerkUserId: user.id,
             name: `${user.firstName} ${user.lastName}`,
             imageUrl: user.imageUrl,
-            email : user.emailAddresses[0]?.emailAddress!
-    
+            email : user.emailAddresses[0]?.emailAddress!,
+            Role: 'user',
+            blocked: false
         }
     })
     

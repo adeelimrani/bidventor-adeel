@@ -6,6 +6,7 @@ import { Upload, Star, Github, Twitter, Linkedin } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { useState } from "react"
+import { PricingComponent } from "@/components/Pricing"
 
 export default function LandingPage() {
   const [file, setFile] = useState(null);
@@ -56,7 +57,7 @@ export default function LandingPage() {
         Optimize Your Amazon Bids
       </h1>
       <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl">
-        Effortlessly optimize your Amazon PPC bids using advanced AI technology. Upload your campaign data and get
+        Effortlessly optimize your Amazon PPC bids using our advanced Algorithm. Upload your campaign data and get
         instant optimization suggestions.
       </p>
       <div className="w-full max-w-md mx-auto">
@@ -100,7 +101,7 @@ export default function LandingPage() {
       {/* Trust Badge */}
       <section className="w-full py-6 bg-muted/30">
         <div className="container px-4 md:px-6 text-center">
-          <p className="text-muted-foreground">Trusted by thousands of Amazon sellers worldwide</p>
+          <p className="text-muted-foreground rounded-md">Trusted by thousands of Amazon sellers worldwide</p>
         </div>
       </section>
 
@@ -158,7 +159,7 @@ export default function LandingPage() {
       </section>
 
       {/* Pricing/Accessibility Section */}
-      <section className="w-full py-12 md:py-24 bg-muted/50">
+      {/* <section className="w-full py-12 md:py-24 bg-muted/50">
         <div className="container px-4 md:px-6">
           <h2 className="text-3xl font-bold text-center mb-4">Accessibility</h2>
           <p className="text-center text-muted-foreground mb-12">
@@ -206,7 +207,11 @@ export default function LandingPage() {
             </Card>
           </div>
         </div>
-      </section>
+      </section> */}
+      
+
+      {/* Pricing Component */}
+      <PricingComponent />
 
       {/* Testimonials Section */}
       <section className="w-full py-12 md:py-24">

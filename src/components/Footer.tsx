@@ -8,7 +8,7 @@ const Footer = () => {
            <div className="grid gap-8 md:grid-cols-4">
              <div>
                <h3 className="font-bold mb-4">Bidventor</h3>
-               <p className="text-sm text-muted-foreground">Optimizing Amazon PPC campaigns with AI technology</p>
+               <p className="text-sm text-muted-foreground">Optimizing Amazon PPC campaigns</p>
              </div>
              <div>
                <h4 className="font-bold mb-4">Product</h4>

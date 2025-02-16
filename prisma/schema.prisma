@@ -14,25 +14,32 @@ datasource db {
 }
 
 model User {
-  id          String  @id @default(uuid())
-  clerkUserId String  @unique
-  email       String  @unique
-  name        String?
-  imageUrl    String?
-
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  id           String         @id @default(uuid())
+  clerkUserId  String         @unique
+  email        String         @unique
+  name         String?
+  imageUrl     String?
+  blocked      Boolean        @default(false)
+  Role         user_type
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
   optimization Optimization[]
 }
 
-model Optimization{
-  id            String    @id @default(cuid())
-  userId        String
-  user          User      @relation(fields: [userId], references: [id])
+model Optimization {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
-  inputFile     String
-  outputFile    String?
-  
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  inputFile  String
+  outputFile String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum user_type {
+  admin
+  manager
+  user
 }
