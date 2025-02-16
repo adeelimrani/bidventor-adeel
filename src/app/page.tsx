@@ -48,7 +48,7 @@ export default function LandingPage() {
     }
   };
   return (
-    <div className="flex flex-col justify-center items-center mx-auto min-h-screen w-max">
+    <div className="flex flex-col justify-center items-center mx-auto min-h-screen md:lg:w-max">
       {/* Hero Section */}
       <section className="w-full py-12 md:py-24 lg:py-32 bg-background">
   <div className="container px-4 md:px-6">
