@@ -275,29 +275,22 @@ export default function LandingPage() {
             <AccordionItem value="item-1">
               <AccordionTrigger>How does Bidventor work?</AccordionTrigger>
               <AccordionContent>
-                Simply upload your Amazon campaign data, and our AI will analyze your performance metrics to suggest
+                Simply upload your Amazon campaign data, and our Advanced Algorithm will analyze your performance metrics to suggest
                 optimal bid adjustments for each keyword.
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="item-2">
               <AccordionTrigger>What format should my data be in?</AccordionTrigger>
               <AccordionContent>
-                We accept CSV exports from Amazon Seller Central. You can download your campaign reports and upload them
+                We accept Excel exports from Amazon Seller Central. You can download your campaign reports and upload them
                 directly.
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="item-3">
               <AccordionTrigger>Is there a free trial?</AccordionTrigger>
               <AccordionContent>
-                Yes! You can optimize up to 5 campaigns for free without signing up. For unlimited optimizations, check
+                Yes! You can optimize up to 3 campaigns for free without signing up. For unlimited optimizations, check
                 out our premium plans.
-              </AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="item-4">
-              <AccordionTrigger>How accurate are the bid recommendations?</AccordionTrigger>
-              <AccordionContent>
-                Our AI model is trained on millions of successful Amazon PPC campaigns and continuously learns from new
-                data to provide highly accurate recommendations.
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="item-5">
@@ -311,86 +304,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="w-full py-12 bg-background border-t">
-        <div className="container px-4 md:px-6">
-          <div className="grid gap-8 md:grid-cols-4">
-            <div>
-              <h3 className="font-bold mb-4">Bidventor</h3>
-              <p className="text-sm text-muted-foreground">Optimizing Amazon PPC campaigns with AI technology</p>
-            </div>
-            <div>
-              <h4 className="font-bold mb-4">Product</h4>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <Link href="#" className="text-muted-foreground hover:text-primary">
-                    Features
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="text-muted-foreground hover:text-primary">
-                    Pricing
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="text-muted-foreground hover:text-primary">
-                    FAQ
-                  </Link>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-bold mb-4">Company</h4>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <Link href="#" className="text-muted-foreground hover:text-primary">
-                    About
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="text-muted-foreground hover:text-primary">
-                    Blog
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="text-muted-foreground hover:text-primary">
-                    Contact
-                  </Link>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-bold mb-4">Legal</h4>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <Link href="#" className="text-muted-foreground hover:text-primary">
-                    Privacy
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="text-muted-foreground hover:text-primary">
-                    Terms
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </div>
-          <div className="flex flex-col items-center gap-4 mt-8 pt-8 border-t">
-            <div className="flex gap-4">
-              <Link href="#" className="text-muted-foreground hover:text-primary">
-                <Github className="h-6 w-6" />
-              </Link>
-              <Link href="#" className="text-muted-foreground hover:text-primary">
-                <Twitter className="h-6 w-6" />
-              </Link>
-              <Link href="#" className="text-muted-foreground hover:text-primary">
-                <Linkedin className="h-6 w-6" />
-              </Link>
-            </div>
-            <p className="text-sm text-muted-foreground">© 2024 Bidventor. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+ 
     </div>
   )
 }
