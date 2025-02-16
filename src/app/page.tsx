@@ -7,6 +7,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useState } from "react"
 import { PricingComponent } from "@/components/Pricing"
+import { toast } from "sonner";
 
 export default function LandingPage() {
   const [file, setFile] = useState(null);
@@ -32,6 +33,7 @@ export default function LandingPage() {
       console.log(response);
       
       if (response.ok) {
+        toast.success("Succesfully Optimized!")
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -39,9 +41,11 @@ export default function LandingPage() {
         a.download = 'Optimization_Log.xlsx';
         a.click();
       } else {
+        toast.error("Failed to Optimize")
         console.error('Error processing file');
       }
     } catch (error) {
+      toast.error("Failed to Optimize")
       console.error('Error:', error);
     } finally {
       setLoading(false);
@@ -84,7 +88,7 @@ export default function LandingPage() {
             disabled={loading} 
             className="w-full bg-primary text-white py-2 rounded-md hover:bg-primary/90 disabled:opacity-50 transition-all"
           >
-            {loading ? 'Processing...' : 'Upload and Process'}
+            {loading ? 'Processing...' : 'Optimize'}
           </button>
 
           <p className="text-sm text-muted-foreground">
