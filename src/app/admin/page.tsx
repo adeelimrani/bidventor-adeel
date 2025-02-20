@@ -13,15 +13,21 @@ import {
 import UserList from "./_components/Userlist"
 import { CheckUser } from "@/lib/checkuser"
 import { notFound } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { PlusCircle } from "lucide-react"
+import { AddUserDialog } from "./_components/AddUserDialog"
+import getAllUsers from "@/actions/getAllUsers"
 export default async function Dashboard() {
     const user = await CheckUser();
     const ROLE = user?.Role
 
+
     if(ROLE == 'user'){
       return notFound();
     }
+    
     const {response, error} = await getUsers()
-
+    
     if(error){
         console.log("Something went wrong")
     }
@@ -31,6 +37,10 @@ export default async function Dashboard() {
     }
   return (
     <div className="container mx-auto p-6 space-y-8 h-[90vh]">
+      <div className="text-right">
+      <AddUserDialog/>
+
+      </div>
       {/* User List Section */}
       <Card>
         <CardHeader>
@@ -58,7 +68,7 @@ export default async function Dashboard() {
             </TableRow>
             </>: <>
               {response?.map((item, index)=>(
-              <UserList users={item}/>
+              <UserList key={index} users={item}/>
             ))}
             </>}
 
@@ -90,46 +100,13 @@ export default async function Dashboard() {
             </TableRow>
             </>: <>
               {(getBlockUsersList).response?.map((item, index)=>(
-              <UserList users={item}/>
+              <UserList key={index} users={item}/>
             ))}
             </>}
             
             </TableBody>
 </Table>
-      {/* Blocked Users & Domains Section */}
-      {/* <Card>
-        <CardHeader>
-          <CardTitle>Blocked Users & Domains</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="blocked-emails">
-            <TabsList className="mb-4">
-              <TabsTrigger value="blocked-emails">Blocked Emails</TabsTrigger>
-              <TabsTrigger value="blocked-domains">Blocked Domains</TabsTrigger>
-              <TabsTrigger value="removed-users">Removed Users</TabsTrigger>
-              <TabsTrigger value="recorded-emails">Recorded Emails</TabsTrigger>
-            </TabsList>
-            <TabsContent value="blocked-emails">
-              <div className="text-sm text-muted-foreground bg-sky-50 p-4 rounded-md">
-                <ul>
-                {(await getBlockUsers).response?.map((item, index)=>(
-              <li>{item.email}</li>
-            ))}
-                </ul>
-              </div>
-            </TabsContent>
-            <TabsContent value="blocked-domains">
-              <div className="text-sm text-muted-foreground bg-sky-50 p-4 rounded-md">No blocked domains</div>
-            </TabsContent>
-            <TabsContent value="removed-users">
-              <div className="text-sm text-muted-foreground bg-sky-50 p-4 rounded-md">No removed users</div>
-            </TabsContent>
-            <TabsContent value="recorded-emails">
-              <div className="text-sm text-muted-foreground bg-sky-50 p-4 rounded-md">No recorded emails</div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card> */}
+      
     </div>
   )
 }
