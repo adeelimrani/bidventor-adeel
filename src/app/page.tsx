@@ -2,55 +2,51 @@
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { Upload, Star, Github, Twitter, Linkedin } from "lucide-react"
+import { Upload, Star, Github, Twitter, Linkedin, CheckCircle, Loader } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { useState } from "react"
+import { useActionState, useState } from "react"
 import { PricingComponent } from "@/components/Pricing"
 import { toast } from "sonner";
-
+import { useFormState, useFormStatus } from 'react-dom'
+import { processAmazonAdsUpload } from "@/actions/generateReports"
 export default function LandingPage() {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
-
-  const handleFileChange = (e:any) => {
-    setFile(e.target.files[0]);
+  const [downloadUrl, setDownloadUrl] = useState("");
+  const [error, setError] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const handleFileChange = (e: any) => {
+    setError(false);
+    setFile(e.target.files[0].name);
+    setSuccess(true); 
+  
+    setTimeout(() => {
+      setSuccess(false); 
+    }, 2000);
   };
 
-  const handleSubmit = async () => {
-    if (!file) return;
-
+  const handleFileSubmit = async (e:any) => {
     setLoading(true);
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await fetch('http://localhost:5000/process', {
-        method: 'POST',
-        body: formData,
-      });
-      console.log(response);
-      
-      if (response.ok) {
-        toast.success("Succesfully Optimized!")
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'Optimization_Log.xlsx';
-        a.click();
-      } else {
-        toast.error("Failed to Optimize")
-        console.error('Error processing file');
-      }
-    } catch (error) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    
+    const data = await processAmazonAdsUpload(formData)
+    if(data.data){
+      toast.dismiss()
+      toast.success("Succesfully Optimized!")
+      setDownloadUrl(data.data as string)
+      setError(false);
+      setLoading(false);
+    }else{
+      toast.dismiss()
       toast.error("Failed to Optimize")
-      console.error('Error:', error);
-    } finally {
+      setError(true);
       setLoading(false);
     }
-  };
+  }
+  
   return (
     <div className="flex flex-col justify-center items-center mx-auto min-h-screen md:lg:w-max">
       {/* Hero Section */}
@@ -65,38 +61,76 @@ export default function LandingPage() {
         instant optimization suggestions.
       </p>
       <div className="w-full max-w-md mx-auto">
-        <div className="flex flex-col items-center gap-4 border border-gray-300 rounded-lg p-6 shadow-md bg-white">
-          {/* File Upload Box */}
-          <label 
-            className="w-full cursor-pointer border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary transition-colors"
-          >
-            <input 
-              type="file" 
-              onChange={handleFileChange} 
-              className="hidden" 
-            />
-            <div className="flex flex-col items-center space-y-2">
+      <form
+        className="flex flex-col items-center gap-4 border border-gray-300 rounded-lg p-6 shadow-md bg-white"
+        onSubmit={handleFileSubmit}
+      >
+        {/* File Upload Box */}
+        <label
+          className={`w-full cursor-pointer border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+            error ? 'border-red-500' : 'border-gray-300 hover:border-primary'
+          }`}
+        >
+          <input
+            type="file"
+            name="file"
+            id="file"
+            accept=".xlsx"
+            required={true}
+            className="hidden"
+            onChange={handleFileChange}
+            disabled={loading}
+          />
+          <div className="flex flex-col items-center space-y-2">
+            {loading ? (
+              <Loader className="h-8 w-8 text-gray-500 animate-spin" />
+            ) : (
               <Upload className="h-8 w-8 text-gray-500" />
-              <p className="text-sm text-gray-600">Click to upload or drag and drop</p>
-              <p className="text-xs text-gray-400">Supported format: Excel</p>
-            </div>
-          </label>
-          
-          {/* Upload Button */}
-          {file && <><button 
-            onClick={handleSubmit} 
-            disabled={loading} 
-            className="w-full bg-primary text-white py-2 rounded-md hover:bg-primary/90 disabled:opacity-50 transition-all"
-          >
-            {loading ? 'Processing...' : 'Optimize'}
-          </button>
-
-          <p className="text-sm text-muted-foreground">
-            Upload your first 3 campaigns for free
-          </p></>
+            )}
+            {file ? (
+              <p className="text-sm text-gray-600 uppercase font-semibold">{file}</p>
+            ):(<>
+              <p className="text-sm text-gray-600">Drag and drop your file here</p>
+              <p className="text-xs text-gray-400">Supported format: Excel (.xlsx), max 300MB</p>
+              </>
+            )
           }
+          </div>
+        </label>
+
+        {/* Error Message */}
+        {error && <p className="text-sm text-red-500">Invalid data format</p>}
+
+        {/* Success Message */}
+        {success && (
+          <p className="text-sm text-green-500 flex items-center gap-2">
+            <CheckCircle className="h-4 w-4" /> File uploaded successfully!
+          </p>
+        )}
+
+        {/* Upload Button */}
+        <Button size="default" type="submit" disabled={loading}>
+          {loading ? 'Uploading...' : 'Upload File'}
+        </Button>
+
+        <p className="text-sm text-muted-foreground">
+          Upload your first 3 campaigns for free
+        </p>
+      </form>
+
+      {/* Download Link */}
+      {downloadUrl && (
+        <div className="mt-4 text-center">
+          <a
+            href={downloadUrl}
+            download="Optimization_Log.xlsx"
+            className="text-primary hover:underline"
+          >
+            Download Optimized File
+          </a>
         </div>
-      </div>
+      )}
+    </div>
     </div>
   </div>
 </section>
@@ -317,4 +351,3 @@ export default function LandingPage() {
     </div>
   )
 }
-
