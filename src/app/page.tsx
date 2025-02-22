@@ -33,10 +33,10 @@ export default function LandingPage() {
     
     
     const data = await processAmazonAdsUpload(formData)
-    if(data.data){
+    if(data.optimizationLog){
       toast.dismiss()
       toast.success("Succesfully Optimized!")
-      setDownloadUrl(data.data as string)
+      setDownloadUrl(data.optimizationLog as string)
       setError(false);
       setLoading(false);
     }else{
