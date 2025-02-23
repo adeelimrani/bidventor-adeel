@@ -429,7 +429,7 @@ async function generateOptimizationLog(data: OptimizationData) {
 
 async function generateBulkUploadFile(data: OptimizationData) {
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet('Sponsored Products Campaigns');
+  const sheet = workbook.addWorksheet('Optimization logs');
 
   // Define Amazon Upload Format columns (exact order from C.2.1)
   sheet.columns = [
