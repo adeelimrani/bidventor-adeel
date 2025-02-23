@@ -14,6 +14,7 @@ export default function LandingPage() {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState("");
+  const [downloadUrlPdf, setDownloadUrlPdf] = useState("");
   const [error, setError] = useState(false);
   const [success, setSuccess] = useState(false);
   const handleFileChange = (e: any) => {
@@ -33,10 +34,11 @@ export default function LandingPage() {
     
     
     const data = await processAmazonAdsUpload(formData)
-    if(data.optimizationLog){
+    if(data.bulkUpload){
       toast.dismiss()
       toast.success("Succesfully Optimized!")
-      setDownloadUrl(data.optimizationLog as string)
+      setDownloadUrl(data.bulkUpload as string)
+      setDownloadUrlPdf(data.pdfReport as string)
       setError(false);
       setLoading(false);
     }else{
@@ -127,6 +129,17 @@ export default function LandingPage() {
             className="text-primary hover:underline"
           >
             Download Optimized File
+          </a>
+        </div>
+      )}
+      {downloadUrlPdf && (
+        <div className="mt-4 text-center">
+          <a
+            href={downloadUrlPdf}
+            download="Optimization_Report.pdf"
+            className="text-primary hover:underline"
+          >
+            Download Optimization PDF Report
           </a>
         </div>
       )}

@@ -1,8 +1,10 @@
-// @ts-nocheck
+//@ts-nocheck
 'use server'
 
 import ExcelJS from 'exceljs'
 import { Readable } from 'stream'
+import PDFDocument from 'pdfkit';
+import blobStream from 'blob-stream';
 
 interface OptimizationData {
   productTargeting: Map<string, ProductTargetingEntry>
@@ -93,10 +95,11 @@ export async function processAmazonAdsUpload(formData: FormData) {
     
     const optimizationLog = await generateOptimizationLog(data)
     const bulkUpload = await generateBulkUploadFile(data)
-
+    const pdfBuffer = await generateImpactReportPDF(data);
     return {
       optimizationLog: optimizationLog.dataUrl,
-      bulkUpload: bulkUpload.dataUrl
+      bulkUpload: bulkUpload.dataUrl,
+      pdfReport: `data:application/pdf;base64,${pdfBuffer.toString('base64')}`
     }
   } catch (error) {
     console.error('Processing error:', error)
@@ -424,99 +427,189 @@ async function generateOptimizationLog(data: OptimizationData) {
 }
 
 async function generateBulkUploadFile(data: OptimizationData) {
-  const workbook = new ExcelJS.Workbook()
-  const sheet = workbook.addWorksheet('Sponsored Products Campaigns')
-  
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Sponsored Products Campaigns');
+
+  // Define Amazon Upload Format columns (exact order from C.2.1)
   sheet.columns = [
     { header: 'Product', key: 'product' },
     { header: 'Entity', key: 'entity' },
     { header: 'Operation', key: 'operation' },
     { header: 'Campaign ID', key: 'campaignId' },
     { header: 'Ad Group ID', key: 'adGroupId' },
-    { header: 'Product Targeting ID', key: 'productTargetingId' },
+    { header: 'Portfolio ID', key: 'portfolioId' },
+    { header: 'Ad ID', key: 'adId' },
     { header: 'Keyword ID', key: 'keywordId' },
-    { header: 'Placement', key: 'placement' },
+    { header: 'Product Targeting ID', key: 'productTargetingId' },
+    { header: 'Campaign Name', key: 'campaignName' },
+    { header: 'Ad Group Name', key: 'adGroupName' },
+    { header: 'Start Date', key: 'startDate' },
+    { header: 'End Date', key: 'endDate' },
+    { header: 'Targeting Type', key: 'targetingType' },
+    { header: 'State', key: 'state' },
+    { header: 'Daily Budget', key: 'dailyBudget' },
+    { header: 'SKU', key: 'sku' },
+    { header: 'Ad Group Default Bid', key: 'adGroupDefaultBid' },
     { header: 'Bid', key: 'bid' },
-    { header: 'Percentage', key: 'percentage' },
     { header: 'Keyword Text', key: 'keywordText' },
+    { header: 'Native Language Keyword', key: 'nativeLanguageKeyword' },
+    { header: 'Native Language Locale', key: 'nativeLanguageLocale' },
     { header: 'Match Type', key: 'matchType' },
-    { header: 'Product Targeting Expression', key: 'targetingExpression' }
-  ]
+    { header: 'Bidding Strategy', key: 'biddingStrategy' },
+    { header: 'Placement', key: 'placement' },
+    { header: 'Percentage', key: 'percentage' },
+    { header: 'Product Targeting Expression', key: 'productTargetingExpression' }
+  ];
 
-  // Product Targeting Updates
+  const seen = new Set<string>();
+
+  // Helper to create unique composite key
+  const getCompositeKey = (row: any) => {
+    return [
+      row.entity,
+      row.campaignId,
+      row.adGroupId,
+      row.productTargetingId,
+      row.keywordId,
+      row.placement,
+      row.keywordText,
+      row.productTargetingExpression
+    ].join('|');
+  };
+
+  // C.3.1 - Product Targeting IDs
   data.productTargeting.forEach(entry => {
-    if (entry.newBid) {
-      sheet.addRow({
-        product: 'Sponsored Products',
-        entity: 'Product Targeting',
-        operation: 'Update',
-        campaignId: entry.campaignId,
-        adGroupId: entry.adGroupId,
-        productTargetingId: entry.id,
-        bid: entry.newBid
-      })
-    }
-  })
+    if (!entry.newBid) return;
 
-  // Keyword Updates
+    const row = {
+      product: 'Sponsored Products',
+      entity: 'Product Targeting',
+      operation: 'Update',
+      campaignId: entry.campaignId,
+      adGroupId: entry.adGroupId,
+      productTargetingId: entry.id,
+      state: 'enabled',
+      bid: entry.newBid.toFixed(2)
+    };
+
+    const key = getCompositeKey(row);
+    if (!seen.has(key)) {
+      sheet.addRow(row);
+      seen.add(key);
+    }
+  });
+
+  // C.3.2 - Keyword IDs
   data.keywords.forEach(entry => {
-    if (entry.newBid) {
-      sheet.addRow({
-        product: 'Sponsored Products',
-        entity: 'Keyword',
-        operation: 'Update',
-        campaignId: entry.campaignId,
-        adGroupId: entry.adGroupId,
-        keywordId: entry.id,
-        bid: entry.newBid
-      })
-    }
-  })
+    if (!entry.newBid) return;
 
-  // Placement Updates
+    const row = {
+      product: 'Sponsored Products',
+      entity: 'Keyword',
+      operation: 'Update',
+      campaignId: entry.campaignId,
+      adGroupId: entry.adGroupId,
+      keywordId: entry.id,
+      state: 'enabled',
+      bid: entry.newBid
+    };
+
+    const key = getCompositeKey(row);
+    if (!seen.has(key)) {
+      sheet.addRow(row);
+      seen.add(key);
+    }
+  });
+
+  // C.3.3 - Placements
   data.placements.forEach(entry => {
-    if (entry.newBid) {
-      sheet.addRow({
-        product: 'Sponsored Products',
-        entity: 'Bidding Adjustment',
-        operation: 'Update',
-        campaignId: entry.campaignId,
-        placement: entry.placement,
-        percentage: entry.newBid
-      })
-    }
-  })
+    if (!entry.newBid) return;
 
-  // Negative Targets
+    const row = {
+      product: 'Sponsored Products',
+      entity: 'Bidding Adjustment',
+      operation: 'Update',
+      campaignId: entry.campaignId,
+      placement: entry.placement,
+      percentage: entry.newBid
+    };
+
+    const key = getCompositeKey(row);
+    if (!seen.has(key)) {
+      sheet.addRow(row);
+      seen.add(key);
+    }
+  });
+
+  // C.3.4 - Negative Keywords & Targets
   data.negativeTerms.forEach(entry => {
-    if (entry.action) {
-      if (entry.isProduct) {
-        sheet.addRow({
-          product: 'Sponsored Products',
-          entity: 'Negative Product Targeting',
-          operation: 'Add',
-          campaignId: entry.campaignId,
-          adGroupId: entry.adGroupId,
-          targetingExpression: entry.formattedTerm
-        })
-      } else {
-        sheet.addRow({
-          product: 'Sponsored Products',
-          entity: 'Negative Keyword',
-          operation: 'Add',
-          campaignId: entry.campaignId,
-          adGroupId: entry.adGroupId,
-          keywordText: entry.term,
-          matchType: 'negativeExact'
-        })
+    if (!entry.action) return;
+
+    const baseRow = {
+      product: 'Sponsored Products',
+      operation: 'Add',
+      campaignId: entry.campaignId,
+      adGroupId: entry.adGroupId,
+      state: 'enabled'
+    };
+
+    if (entry.isProduct) {
+      const row = {
+        ...baseRow,
+        entity: 'Negative Product Targeting',
+        productTargetingExpression: `asin="${entry.term}"`
+      };
+      
+      const key = getCompositeKey(row);
+      if (!seen.has(key)) {
+        sheet.addRow(row);
+        seen.add(key);
+      }
+    } else {
+      const row = {
+        ...baseRow,
+        entity: 'Negative Keyword',
+        keywordText: entry.term,
+        matchType: 'negativeExact'
+      };
+
+      const key = getCompositeKey(row);
+      if (!seen.has(key)) {
+        sheet.addRow(row);
+        seen.add(key);
       }
     }
-  })
+  });
 
-  const buffer = await workbook.xlsx.writeBuffer()
+  // C.4.1 - Remove duplicates (final pass)
+  const uniqueRows = new Map();
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return; // Skip header
+    const key = getCompositeKey(row.values);
+    uniqueRows.set(key, row.values);
+  });
+
+  // Clear and repopulate with unique rows
+  sheet.spliceRows(2, sheet.rowCount);
+  uniqueRows.forEach(values => sheet.addRow(values));
+
+  // C.4.1 - Ensure proper formatting
+  sheet.eachRow(row => {
+    row.eachCell(cell => {
+      cell.alignment = { vertical: 'middle', horizontal: 'left' };
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+    });
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
   return {
     dataUrl: `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${buffer.toString('base64')}`
-  }
+  };
 }
 
 // Helper functions
@@ -533,4 +626,135 @@ function updateMetrics(existing: any, row: any) {
   existing.spend += Number(row.Spend) || 0
   existing.sales += Number(row.Sales) || 0
   existing.units += Number(row.Units) || 0
+}
+
+
+async function generateImpactReportPDF(data: OptimizationData) {
+  const doc = new PDFDocument({ 
+    size: 'A4', 
+    margin: 72,
+  });
+
+  const stream = doc.pipe(blobStream());
+  
+  // Calculate impact metrics
+  const impactMetrics = calculateImpactMetrics(data);
+
+  // Header
+  doc.font('fonts/Poppins-Bold.ttf')
+      .fontSize(24)
+     .text('Optimization Impact of Bidventor on Your Campaigns', { align: 'center' })
+     .moveDown(0.5)
+     .fontSize(18)
+     .text('Leave Your Competition in the Dust with Bidventor', { align: 'center' })
+     .moveDown(2);
+
+  // Table setup
+  const tableTop = 180;
+  const colWidths = [150, 150, 150, 150];
+  const rowHeight = 30;
+
+  // Table headers
+  doc.font('fonts/Poppins-Bold.ttf')
+     .fontSize(12)
+     .fillColor('#ffffff')
+     .rect(72, tableTop, 500, rowHeight).fill('#232F3E')
+     .text('Metric', 72, tableTop + 8, { width: colWidths[0], align: 'center' })
+     .text('Before', 222, tableTop + 8, { width: colWidths[1], align: 'center' })
+     .text('After', 372, tableTop + 8, { width: colWidths[2], align: 'center' })
+     .text('Impact', 522, tableTop + 8, { width: colWidths[3], align: 'center' });
+
+  // Table rows
+  let y = tableTop + rowHeight;
+  impactMetrics.forEach((metric, index) => {
+    doc.font('fonts/Poppins-Bold.ttf')
+       .fontSize(10)
+       .fillColor('#000000')
+       .text(metric.metric, 72, y + 8, { width: colWidths[0], align: 'center' })
+       .text(metric.before, 222, y + 8, { width: colWidths[1], align: 'center' })
+       .text(metric.after, 372, y + 8, { width: colWidths[2], align: 'center' })
+       .text(metric.impact, 522, y + 8, { width: colWidths[3], align: 'center' });
+
+    // Draw grid lines
+    doc.strokeColor('#cccccc')
+       .lineWidth(1)
+       .moveTo(72, y)
+       .lineTo(572, y)
+       .stroke();
+
+    y += rowHeight;
+  });
+
+  // Footer content
+  doc.moveDown(4)
+     .fontSize(10)
+     .fillColor('#666666')
+     .text('🚀 Unlock More Profit & Maximize ROAS Instantly!', { align: 'left' })
+     .moveDown(0.5)
+     .text("💰 We guarantee you'll save [X] dollars and boost ROAS from [Y] to [Z] within the next 30 days – and it's effortless!")
+     .moveDown(0.5)
+     .font('fonts/Poppins-Bold.ttf')
+     .text('✅ Apply Bidventor’s Smart Optimizations', { continued: true })
+     .font('fonts/Poppins-Regular.ttf')
+     .text(' – Upload the Amazon Upload file in Amazon ad console and let Amazon do the work!')
+     .moveDown(0.5)
+     .font('fonts/Poppins-Bold.ttf')
+     .text('✅ Use Bidventor’s Winning Keywords', { continued: true })
+     .font('fonts/Poppins-Regular.ttf')
+     .text(' – Optimize your title, bullet points, and backend search terms with ease.')
+     .moveDown(0.5)
+     .font('fonts/Poppins-Bold.ttf')
+     .text('✅ Keep Stock Healthy & Listings Secure', { continued: true })
+     .font('fonts/Poppins-Regular.ttf')
+     .text(' – No hijackers, no stockouts, just steady sales growth!')
+     .moveDown(0.5)
+     .text('💡 Our Guarantee: When you follow these steps, your profits will rise!')
+     .moveDown(0.5)
+     .text('⚠️ Heads-Up: If this is your first optimization with Bidventor, you may see a slight sales dip of [X]% in Month 1 – but that’s just a warm-up before BIG gains!')
+     .moveDown(0.5)
+     .font('fonts/Poppins-Bold.ttf')
+     .text('✨ Bidventor = Effortless Growth. More Profit. Less Stress. ✨', { align: 'center' });
+
+  doc.end();
+
+  return new Promise<Buffer>((resolve, reject) => {
+    stream.on('finish', () => {
+      const buffer = Buffer.from(stream.toBlob(), 'binary');
+      resolve(buffer);
+    });
+    stream.on('error', reject);
+  });
+}
+
+// Impact metrics calculation
+function calculateImpactMetrics(data: OptimizationData) {
+  const ptSavings = Array.from(data.productTargeting.values())
+    .reduce((acc, pt) => acc + (pt.bid - (pt.newBid || pt.bid)) * pt.clicks, 0);
+  
+  const kwSavings = Array.from(data.keywords.values())
+    .reduce((acc, kw) => acc + (kw.bid - (kw.newBid || kw.bid)) * kw.clicks, 0);
+  
+  const negSavings = Array.from(data.negativeTerms.values())
+    .reduce((acc, nt) => nt.action ? acc + nt.spend : acc, 0);
+
+  return [
+    {
+      metric: 'Estimated Monthly Savings',
+      before: `$${(ptSavings + kwSavings + negSavings).toFixed(2)}`,
+      after: `$${(ptSavings + kwSavings + negSavings).toFixed(2)}`,
+      impact: 'Potential Savings'
+    },
+    {
+      metric: 'Average ROAS Improvement',
+      before: '0%',
+      after: `${((ptSavings + kwSavings) / 100).toFixed(2)}%`,
+      impact: 'ROAS Boost'
+    },
+    {
+      metric: 'Negative Targets Identified',
+      before: '0',
+      after: data.negativeTerms.size.toString(),
+      impact: 'Waste Prevention'
+    }
+  ];
 }

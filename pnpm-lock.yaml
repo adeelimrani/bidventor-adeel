@@ -38,6 +38,12 @@ importers:
       '@sendgrid/mail':
         specifier: ^8.1.4
         version: 8.1.4
+      '@types/blob-stream':
+        specifier: ^0.1.33
+        version: 0.1.33
+      '@types/pdfkit':
+        specifier: ^0.13.9
+        version: 0.13.9
       '@types/xlsx':
         specifier: ^0.0.36
         version: 0.0.36
@@ -782,11 +788,17 @@ packages:
   '@swc/helpers@0.5.15':
     resolution: {integrity: sha512-JQ5TuMi45Owi4/BIMAJBoSQoOJu12oOk/gADqlcUL9JEdHB8vyjUSsxqeNXnmXHjYKMi2WcYtezGEEhqUI/E2g==}
 
+  '@types/blob-stream@0.1.33':
+    resolution: {integrity: sha512-HNHZ1S6W7F8PhxdyAastunpUC8cAZim78UIfqbL79gLzylp8EZep68yxAh11hTRoEvsqHAg/MECgmKF8+V0HzQ==}
+
   '@types/node@14.18.63':
     resolution: {integrity: sha512-fAtCfv4jJg+ExtXhvCkCqUKZ+4ok/JQk01qDKhL5BDDoS3AxKXhV5/MAVUZyQnSEd2GT92fkgZl0pz0Q0AzcIQ==}
 
   '@types/node@20.17.18':
     resolution: {integrity: sha512-9kS0opXVV3dJ+C7HPhXfDlOdMu4cjJSZhlSxlDK39IxVRxBbuiYjCkLYSO9d5UYqTd4DApxRK9T1xJiTAkfA0w==}
+
+  '@types/pdfkit@0.13.9':
+    resolution: {integrity: sha512-RDG8Yb1zT7I01FfpwK7nMSA433XWpblMqSCtA5vJlSyavWZb303HUYPCel6JTiDDFqwGLvtAnYbH8N/e0Cb89g==}
 
   '@types/react-dom@19.0.3':
     resolution: {integrity: sha512-0Knk+HJiMP/qOZgMyNFamlIjw9OFCsyC2ZbigmEEyXXixgre6IQpm/4V+r3qH4GC1JPvRJKInw+on2rV6YZLeA==}
@@ -2566,11 +2578,19 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  '@types/blob-stream@0.1.33':
+    dependencies:
+      '@types/node': 20.17.18
+
   '@types/node@14.18.63': {}
 
   '@types/node@20.17.18':
     dependencies:
       undici-types: 6.19.8
+
+  '@types/pdfkit@0.13.9':
+    dependencies:
+      '@types/node': 20.17.18
 
   '@types/react-dom@19.0.3(@types/react@19.0.8)':
     dependencies:
