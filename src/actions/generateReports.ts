@@ -5,6 +5,7 @@ import ExcelJS from 'exceljs'
 import { Readable } from 'stream'
 import PDFDocument from 'pdfkit';
 import blobStream from 'blob-stream';
+import { PassThrough } from 'stream';
 
 interface OptimizationData {
   productTargeting: Map<string, ProductTargetingEntry>
@@ -93,9 +94,9 @@ export async function processAmazonAdsUpload(formData: FormData) {
     const buffer = Buffer.from(await file.arrayBuffer())
     const data = await processExcelFile(buffer)
     
+    const pdfBuffer = await generateImpactReportPDF(data);
     const optimizationLog = await generateOptimizationLog(data)
     const bulkUpload = await generateBulkUploadFile(data)
-    const pdfBuffer = await generateImpactReportPDF(data);
     return {
       optimizationLog: optimizationLog.dataUrl,
       bulkUpload: bulkUpload.dataUrl,
@@ -628,104 +629,6 @@ function updateMetrics(existing: any, row: any) {
   existing.units += Number(row.Units) || 0
 }
 
-
-async function generateImpactReportPDF(data: OptimizationData) {
-  const doc = new PDFDocument({ 
-    size: 'A4', 
-    margin: 72,
-  });
-
-  const stream = doc.pipe(blobStream());
-  
-  // Calculate impact metrics
-  const impactMetrics = calculateImpactMetrics(data);
-
-  // Header
-  doc.font('fonts/Poppins-Bold.ttf')
-      .fontSize(24)
-     .text('Optimization Impact of Bidventor on Your Campaigns', { align: 'center' })
-     .moveDown(0.5)
-     .fontSize(18)
-     .text('Leave Your Competition in the Dust with Bidventor', { align: 'center' })
-     .moveDown(2);
-
-  // Table setup
-  const tableTop = 180;
-  const colWidths = [150, 150, 150, 150];
-  const rowHeight = 30;
-
-  // Table headers
-  doc.font('fonts/Poppins-Bold.ttf')
-     .fontSize(12)
-     .fillColor('#ffffff')
-     .rect(72, tableTop, 500, rowHeight).fill('#232F3E')
-     .text('Metric', 72, tableTop + 8, { width: colWidths[0], align: 'center' })
-     .text('Before', 222, tableTop + 8, { width: colWidths[1], align: 'center' })
-     .text('After', 372, tableTop + 8, { width: colWidths[2], align: 'center' })
-     .text('Impact', 522, tableTop + 8, { width: colWidths[3], align: 'center' });
-
-  // Table rows
-  let y = tableTop + rowHeight;
-  impactMetrics.forEach((metric, index) => {
-    doc.font('fonts/Poppins-Bold.ttf')
-       .fontSize(10)
-       .fillColor('#000000')
-       .text(metric.metric, 72, y + 8, { width: colWidths[0], align: 'center' })
-       .text(metric.before, 222, y + 8, { width: colWidths[1], align: 'center' })
-       .text(metric.after, 372, y + 8, { width: colWidths[2], align: 'center' })
-       .text(metric.impact, 522, y + 8, { width: colWidths[3], align: 'center' });
-
-    // Draw grid lines
-    doc.strokeColor('#cccccc')
-       .lineWidth(1)
-       .moveTo(72, y)
-       .lineTo(572, y)
-       .stroke();
-
-    y += rowHeight;
-  });
-
-  // Footer content
-  doc.moveDown(4)
-     .fontSize(10)
-     .fillColor('#666666')
-     .text('🚀 Unlock More Profit & Maximize ROAS Instantly!', { align: 'left' })
-     .moveDown(0.5)
-     .text("💰 We guarantee you'll save [X] dollars and boost ROAS from [Y] to [Z] within the next 30 days – and it's effortless!")
-     .moveDown(0.5)
-     .font('fonts/Poppins-Bold.ttf')
-     .text('✅ Apply Bidventor’s Smart Optimizations', { continued: true })
-     .font('fonts/Poppins-Regular.ttf')
-     .text(' – Upload the Amazon Upload file in Amazon ad console and let Amazon do the work!')
-     .moveDown(0.5)
-     .font('fonts/Poppins-Bold.ttf')
-     .text('✅ Use Bidventor’s Winning Keywords', { continued: true })
-     .font('fonts/Poppins-Regular.ttf')
-     .text(' – Optimize your title, bullet points, and backend search terms with ease.')
-     .moveDown(0.5)
-     .font('fonts/Poppins-Bold.ttf')
-     .text('✅ Keep Stock Healthy & Listings Secure', { continued: true })
-     .font('fonts/Poppins-Regular.ttf')
-     .text(' – No hijackers, no stockouts, just steady sales growth!')
-     .moveDown(0.5)
-     .text('💡 Our Guarantee: When you follow these steps, your profits will rise!')
-     .moveDown(0.5)
-     .text('⚠️ Heads-Up: If this is your first optimization with Bidventor, you may see a slight sales dip of [X]% in Month 1 – but that’s just a warm-up before BIG gains!')
-     .moveDown(0.5)
-     .font('fonts/Poppins-Bold.ttf')
-     .text('✨ Bidventor = Effortless Growth. More Profit. Less Stress. ✨', { align: 'center' });
-
-  doc.end();
-
-  return new Promise<Buffer>((resolve, reject) => {
-    stream.on('finish', () => {
-      const buffer = Buffer.from(stream.toBlob(), 'binary');
-      resolve(buffer);
-    });
-    stream.on('error', reject);
-  });
-}
-
 // Impact metrics calculation
 function calculateImpactMetrics(data: OptimizationData) {
   const ptSavings = Array.from(data.productTargeting.values())
@@ -758,3 +661,83 @@ function calculateImpactMetrics(data: OptimizationData) {
     }
   ];
 }
+
+async function generateImpactReportPDF(data: OptimizationData) {
+  const doc = new PDFDocument({ 
+    size: 'A4', 
+    margin: 72,
+    font: 'public/fonts/Poppins-Regular.ttf'
+  });
+  const chunks: Uint8Array[] = [];
+  const stream = new PassThrough();
+
+  doc.pipe(stream);
+  
+  // Calculate impact metrics
+  const impactMetrics = calculateImpactMetrics(data);
+
+  // Title
+  doc.fontSize(22)
+     .fillColor('#000000')
+     .text('Optimization Impact of Bidventor on Your Campaigns', { align: 'center' })
+     .moveDown(0.5)
+     .fontSize(14)
+     .text('Leave Your Competition in the Dust with Bidventor', { align: 'center' })
+     .moveDown(2);
+
+  // Table setup
+  const tableTop = 180;
+  const colWidths = [180, 120, 120, 120]; // Adjusted column widths for proper fit
+  const rowHeight = 25;
+
+  // Table headers
+  doc.fillColor('#ffffff')
+     .rect(50, tableTop, 540, rowHeight)
+     .fill('#232F3E')
+     .fontSize(12)
+     .fillColor('#ffffff')
+     .text('Metric', 55, tableTop + 6, { width: colWidths[0], align: 'left' })
+     .text('Before', 235, tableTop + 6, { width: colWidths[1], align: 'center' })
+     .text('After', 355, tableTop + 6, { width: colWidths[2], align: 'center' })
+     .text('Impact', 475, tableTop + 6, { width: colWidths[3], align: 'center' });
+
+  let y = tableTop + rowHeight;
+  doc.fillColor('#000000');
+
+  impactMetrics.forEach((metric) => {
+    doc.fontSize(10)
+       .text(metric.metric, 55, y + 6, { width: colWidths[0], align: 'left' })
+       .text(metric.before.toString(), 235, y + 6, { width: colWidths[1], align: 'center' })
+       .text(metric.after.toString(), 355, y + 6, { width: colWidths[2], align: 'center' })
+       .text(metric.impact.toString(), 475, y + 6, { width: colWidths[3], align: 'center' });
+
+    doc.strokeColor('#dddddd').lineWidth(0.5).moveTo(50, y).lineTo(590, y).stroke();
+    y += rowHeight;
+  });
+  const pageWidth = doc.page.width; // Get the page width
+  const pageHeight = doc.page.height; // Get page height
+  const footerWidth = 500; // Define a fixed width for text alignment
+  const footerX = (pageWidth - footerWidth) / 2; // Center X position
+  const footerY = pageHeight - 140; // Bottom margin
+  // Footer
+  doc.moveDown(2)
+  .fontSize(10)
+  .fillColor('#444444')
+  .text('🚀 Unlock More Profit & Maximize ROAS Instantly!', 50, footerY, { width: footerWidth, align: 'center' })
+  .moveDown(0.5)
+  .text("💰 We guarantee you'll save money and boost ROAS within 30 days!", 50, doc.y, { width: footerWidth, align: 'center' })
+  .moveDown(0.5)
+  .text('✨ Bidventor = Effortless Growth. More Profit. Less Stress. ✨', 50, doc.y, { width: footerWidth, align: 'center' });
+
+  doc.end();
+
+  return new Promise<Buffer>((resolve, reject) => {
+    stream.on('data', (chunk) => chunks.push(chunk));
+    stream.on('end', () => {
+      const buffer = Buffer.concat(chunks);
+      resolve(buffer);
+    });
+    stream.on('error', reject);
+  });
+}
+
