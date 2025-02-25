@@ -84,6 +84,8 @@ interface NegativeTermEntry {
   action?: string
   isProduct?: boolean
   formattedTerm?: string
+  negKwYes?: boolean    // NEW: Flag for negative keyword
+  negProdYes?: boolean  // NEW: Flag for product targeting
 }
 
 export async function processAmazonAdsUpload(formData: FormData) {
@@ -237,21 +239,26 @@ async function processSearchTermSheet(reader: ExcelJS.stream.xlsx.WorksheetReade
     }
 
     const rowData = mapRowData(headers, row.values)
-    
+    const term = rowData['Customer Search Term']
+    const isProduct = term.toLowerCase().startsWith('b0') // Case-insensitive check
+
     if (rowData['Campaign State (Informational only)'] === 'enabled') {
-      const term = rowData['Customer Search Term']
       const existing = data.negativeTerms.get(term) || {
-        term: term,
+        term,
         campaignId: rowData['Campaign ID'],
         adGroupId: rowData['Ad Group ID'],
         keywordId: rowData['Keyword ID'],
         campaignName: rowData['Campaign Name (Informational only)'],
         adGroupName: rowData['Ad Group Name (Informational only)'],
-        impressions: 0,
-        clicks: 0,
-        spend: 0,
-        sales: 0,
-        units: 0
+        impressions: rowData['Campaign State (Informational only)'],
+        clicks: rowData['Clicks'],
+        spend: rowData['Spend'],
+        sales: rowData['Sales'],
+        units: rowData['Units'],
+        isProduct,
+        negKwYes: !isProduct,       // Set negative keyword flag
+        negProdYes: isProduct,      // Set product targeting flag
+        formattedTerm: isProduct ? `asin="${term}"` : term
       }
 
       updateMetrics(existing, rowData)
@@ -279,6 +286,15 @@ function calculateBidsAndMetrics(data: OptimizationData) {
         entry.newBid = entry.bid * 1.02
       }
     }
+
+    console.log(`Processed ${data.placements.size} placements`);
+    data.placements.forEach((entry, key) => {
+      console.log(`Placement ${key}: 
+        Units: ${entry.units}, 
+        Percentage: ${entry.percentage}, 
+        New Bid: ${entry.newBid}`
+      );
+    });
   })
 
   // Keyword Calculations
@@ -303,33 +319,40 @@ function calculateBidsAndMetrics(data: OptimizationData) {
 
   // Placement Calculations
   data.placements.forEach(entry => {
-    entry.roas = entry.spend > 0 ? entry.sales / entry.spend : 0
-    entry.cpc = entry.clicks > 0 ? entry.spend / entry.clicks : 0
-    const idealCpc = entry.clicks > 0 ? (entry.sales * 0.2) / entry.clicks : 0
-    const diffCpc = entry.cpc > 0 ? (idealCpc - entry.cpc) / entry.cpc : 0
-
+    entry.roas = entry.spend > 0 ? entry.sales / entry.spend : 0;
+    entry.cpc = entry.clicks > 0 ? entry.spend / entry.clicks : 0;
+    const idealCpc = entry.clicks > 0 ? (entry.sales * 0.2) / entry.clicks : 0;
+    const diffCpc = entry.cpc > 0 ? (idealCpc - entry.cpc) / entry.cpc : 0;
+  
+    // Reset newBid to ensure clean calculation
+    entry.newBid = 0.02;
+  
     if (diffCpc > 0) {
       if (entry.percentage !== 0) {
+        // Percentage-based adjustments
         if (entry.units >= 3 && entry.units <= 10) {
-          entry.newBid = Math.min(entry.percentage + (entry.percentage * (diffCpc / 5)), 899)
+          entry.newBid = Math.min(entry.percentage + (entry.percentage * (diffCpc / 5)), 899);
         } else if (entry.units > 10 && entry.units <= 30) {
-          entry.newBid = Math.min(entry.percentage + (entry.percentage * (diffCpc / 4)), 899)
+          entry.newBid = Math.min(entry.percentage + (entry.percentage * (diffCpc / 4)), 899);
         } else if (entry.units > 30 && entry.units <= 50) {
-          entry.newBid = Math.min(entry.percentage + (entry.percentage * (diffCpc / 3)), 899)
+          entry.newBid = Math.min(entry.percentage + (entry.percentage * (diffCpc / 3)), 899);
         } else if (entry.units > 50) {
-          entry.newBid = Math.min(entry.percentage + (entry.percentage * (diffCpc / 2)), 899)
+          entry.newBid = Math.min(entry.percentage + (entry.percentage * (diffCpc / 2)), 899);
         }
       } else {
-        if (entry.units >= 3 && entry.units <= 10) {
-          entry.newBid = Math.min((diffCpc * 100) / 5, 899)
-        } else if (entry.units > 10 && entry.units <= 30) {
-          entry.newBid = Math.min((diffCpc * 100) / 4, 899)
-        } else if (entry.units > 30 && entry.units <= 50) {
-          entry.newBid = Math.min((diffCpc * 100) / 3, 899)
-        } else if (entry.units > 50) {
-          entry.newBid = Math.min((diffCpc * 100) / 2, 899)
-        }
+        // New percentage creation
+        const baseMultiplier = 
+          entry.units >= 3 && entry.units <= 10 ? 5 :
+          entry.units > 10 && entry.units <= 30 ? 4 :
+          entry.units > 30 && entry.units <= 50 ? 3 : 2;
+        
+        entry.newBid = Math.min((diffCpc * 100) / baseMultiplier, 899);
       }
+    }
+  
+    // Ensure at least 0.02 minimum bid
+    if (entry.newBid !== undefined) {
+      entry.newBid = Math.max(entry.newBid, 0.02);
     }
   })
 
@@ -418,7 +441,8 @@ async function generateOptimizationLog(data: OptimizationData) {
   ]
   data.negativeTerms.forEach(entry => negSheet.addRow({
     ...entry,
-    formattedTerm: entry.formattedTerm
+    negKwYes: entry.negKwYes ? 'YES' : 'NO',       // Convert boolean to display
+    negProdYes: entry.negProdYes ? 'YES' : 'NO'    // Convert boolean to display
   }))
 
   const buffer = await workbook.xlsx.writeBuffer()
@@ -474,7 +498,8 @@ async function generateBulkUploadFile(data: OptimizationData) {
       row.keywordId,
       row.placement,
       row.keywordText,
-      row.productTargetingExpression
+      row.productTargetingExpression,
+      row.percentage // Added percentage to key
     ].join('|');
   };
 
@@ -525,16 +550,17 @@ async function generateBulkUploadFile(data: OptimizationData) {
   // C.3.3 - Placements
   data.placements.forEach(entry => {
     if (!entry.newBid) return;
-
+  
     const row = {
       product: 'Sponsored Products',
       entity: 'Bidding Adjustment',
       operation: 'Update',
       campaignId: entry.campaignId,
+      adGroupId: entry.adGroupId, // Added missing adGroupId
       placement: entry.placement,
-      percentage: entry.newBid
+      percentage: parseFloat(entry.newBid.toFixed(2)) // Ensure proper formatting
     };
-
+  
     const key = getCompositeKey(row);
     if (!seen.has(key)) {
       sheet.addRow(row);
@@ -544,43 +570,42 @@ async function generateBulkUploadFile(data: OptimizationData) {
 
   // C.3.4 - Negative Keywords & Targets
   data.negativeTerms.forEach(entry => {
-    if (!entry.action) return;
+    if (!entry.action) return
 
     const baseRow = {
       product: 'Sponsored Products',
-      operation: 'Add',
+      operation: 'Create',
       campaignId: entry.campaignId,
       adGroupId: entry.adGroupId,
       state: 'enabled'
-    };
+    }
 
-    if (entry.isProduct) {
+    // Use stored flags instead of recalculating
+    if (entry.negProdYes) {
       const row = {
         ...baseRow,
         entity: 'Negative Product Targeting',
-        productTargetingExpression: `asin="${entry.term}"`
-      };
-      
-      const key = getCompositeKey(row);
-      if (!seen.has(key)) {
-        sheet.addRow(row);
-        seen.add(key);
+        productTargetingExpression: entry.formattedTerm
       }
-    } else {
+      const key = getCompositeKey(row)
+      if (!seen.has(key)) {
+        sheet.addRow(row)
+        seen.add(key)
+      }
+    } else if (entry.negKwYes) {
       const row = {
         ...baseRow,
         entity: 'Negative Keyword',
         keywordText: entry.term,
         matchType: 'negativeExact'
-      };
-
-      const key = getCompositeKey(row);
+      }
+      const key = getCompositeKey(row)
       if (!seen.has(key)) {
-        sheet.addRow(row);
-        seen.add(key);
+        sheet.addRow(row)
+        seen.add(key)
       }
     }
-  });
+  })
 
   // C.4.1 - Remove duplicates (final pass)
   const uniqueRows = new Map();
@@ -606,7 +631,9 @@ async function generateBulkUploadFile(data: OptimizationData) {
       };
     });
   });
-
+  console.log(`Found ${data.placements.size} placements total`);
+  console.log(`Generating ${seen.size} placement rows for bulk upload`);
+  
   const buffer = await workbook.xlsx.writeBuffer();
   return {
     dataUrl: `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${buffer.toString('base64')}`
@@ -740,4 +767,3 @@ async function generateImpactReportPDF(data: OptimizationData) {
     stream.on('error', reject);
   });
 }
-
