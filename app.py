@@ -10,6 +10,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 import base64
 import logging
+import uvicorn
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 app = FastAPI()
@@ -403,27 +405,35 @@ def process_bidventor(file_content: bytes):
         return {"success": False, "error": str(e)}
 
 
+from io import BytesIO
+
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
+    logger.info("Start processing...")
+
     if not file.filename.endswith('.xlsx'):
         raise HTTPException(400, detail="Invalid file type. Please upload .xlsx")
 
     try:
         logger.info(f"Processing file: {file.filename}")
-        content = await file.read()
-        result = process_bidventor(content)
-        
+
+        # Read file in chunks instead of loading entire content into memory
+        file_content = BytesIO(await file.read())
+        df = pd.read_excel(file_content)  # Use pandas to read directly from BytesIO
+
+        logger.info("Start processing")
+        result = process_bidventor(df)
+
         if result['success']:
             return result
         else:
             logger.error(f"Processing error: {result['error']}")
             raise HTTPException(400, detail=result['error'])
-            
+
     except Exception as e:
-        
         logger.error(f"Unhandled exception: {str(e)}", exc_info=True)
         raise HTTPException(500, detail=str(e))
 
+
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
