@@ -28,8 +28,8 @@ export default function LandingPage() {
     setLoading(true);
     setError(null);
 
-    const CHUNK_SIZE = 25 * 1024 * 1024; // 25MB chunks
-    const fileSize = selectedFile.size;
+    const CHUNK_SIZE = 25 * 1024 * 1024;//@ts-ignore // 25MB chunks
+    const fileSize = selectedFile.size; 
     const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
     
     const uploadId = `${Date.now()}-${Math.random().toString(36).substring(2)}-${navigator.userAgent.substring(0, 10)}`;
@@ -40,19 +40,19 @@ export default function LandingPage() {
 
         for (let i = 0; i < totalChunks; i++) {
             const start = i * CHUNK_SIZE;
-            const end = Math.min(start + CHUNK_SIZE, fileSize);
+            const end = Math.min(start + CHUNK_SIZE, fileSize);//@ts-ignore
             const chunk = selectedFile.slice(start, end);
 
             const formData = new FormData();
             formData.append('chunk', chunk);
             formData.append('uploadId', uploadId);
             formData.append('chunkIndex', i.toString());
-            formData.append('totalChunks', totalChunks.toString());
+            formData.append('totalChunks', totalChunks.toString());//@ts-ignore
             formData.append('fileName', selectedFile.name);
 
             const uploadChunk = async () => {
                 try {
-                    const response = await fetch('https://babend-adeel.replit.app/upload', {
+                    const response = await fetch('http://localhost:8000/upload', {
                         method: 'POST',
                         body: formData,
                         headers: {
@@ -86,10 +86,10 @@ export default function LandingPage() {
         // Final request as POST with minimal form data
         const finalFormData = new FormData();
         finalFormData.append('uploadId', uploadId);
-        finalFormData.append('totalChunks', totalChunks.toString());
+        finalFormData.append('totalChunks', totalChunks.toString());//@ts-ignore
         finalFormData.append('fileName', selectedFile.name);
 
-        const finalResponse = await fetch('https://babend-adeel.replit.app/upload?complete=true', {
+        const finalResponse = await fetch('http://localhost:8000/upload?complete=true', {
             method: 'POST',
             body: finalFormData,
             headers: {
@@ -113,8 +113,8 @@ export default function LandingPage() {
         }
 
     } catch (err) {
-        console.error('Upload error:', err);
-        toast.error(`Upload failed: ${err.message}`);
+        console.error('Upload error:', err);//@ts-ignore
+        toast.error(`Upload failed: ${err.message}`);//@ts-ignore
         setError(err.message);
     } finally {
         setLoading(false);
