@@ -52,7 +52,7 @@ export default function LandingPage() {
 
             const uploadChunk = async () => {
                 try {
-                    const response = await fetch('http://localhost:8000/upload', {
+                    const response = await fetch('https://babend-adeel.replit.app/upload', {
                         method: 'POST',
                         body: formData,
                         headers: {
@@ -89,7 +89,7 @@ export default function LandingPage() {
         finalFormData.append('totalChunks', totalChunks.toString());//@ts-ignore
         finalFormData.append('fileName', selectedFile.name);
 
-        const finalResponse = await fetch('http://localhost:8000/upload?complete=true', {
+        const finalResponse = await fetch('https://babend-adeel.replit.app/upload?complete=true', {
             method: 'POST',
             body: finalFormData,
             headers: {
