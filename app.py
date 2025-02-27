@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import numpy as np
@@ -11,17 +11,32 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 import base64
 import logging
 import uvicorn
+import asyncio
+import os
+from pathlib import Path
+import shutil
+from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
+from typing import Dict
+import aiofiles
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 app = FastAPI()
+app = FastAPI(max_request_size=400 * 1024 * 1024)
+origins = [
+    "https://bidventor.vercel.app/",
+    "http://localhost:3000",
+    "https://bidventor.com",
+]
 
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"]
 )
 
 def generate_impact_report(grouped_ptid, grouped_kwid, grouped_neg):
@@ -105,7 +120,7 @@ def generate_impact_report(grouped_ptid, grouped_kwid, grouped_neg):
 def process_bidventor(file_content: bytes):
     try:
         xls = pd.ExcelFile(BytesIO(file_content))
-        
+
         # Create in-memory buffers for outputs
         opt_log_buffer = BytesIO()
         amazon_upload_buffer = BytesIO()
@@ -404,36 +419,111 @@ def process_bidventor(file_content: bytes):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "OK",
+        "versions": {
+            "pandas": pd.__version__,
+            "numpy": np.__version__
+        }
+    }
 
-from io import BytesIO
+TEMP_DIR = Path("temp_chunks")
+TEMP_DIR.mkdir(exist_ok=True)
+
+chunk_locks: Dict[str, asyncio.Lock] = {}
+executor = ThreadPoolExecutor(max_workers=4)
+
+async def save_chunk_temp(upload_id: str, chunk_index: str, chunk: UploadFile) -> str:
+    chunk_path = TEMP_DIR / f"{upload_id}_{chunk_index}"
+    chunk_path.parent.mkdir(exist_ok=True)
+    
+    if upload_id not in chunk_locks:
+        chunk_locks[upload_id] = asyncio.Lock()
+    
+    async with chunk_locks[upload_id]:
+        async with aiofiles.open(chunk_path, "wb") as buffer:
+            content = await chunk.read()
+            await buffer.write(content)
+    return str(chunk_path)
+
+async def combine_chunks(upload_id: str, total_chunks: int, original_filename: str) -> bytes:
+    combined_path = TEMP_DIR / f"{upload_id}_complete.xlsx"
+    
+    if upload_id not in chunk_locks:
+        chunk_locks[upload_id] = asyncio.Lock()
+        
+    async with chunk_locks[upload_id]:
+        async with aiofiles.open(combined_path, "wb") as combined_file:
+            for i in range(total_chunks):
+                chunk_path = TEMP_DIR / f"{upload_id}_{i}"
+                if not chunk_path.exists():
+                    raise FileNotFoundError(f"Chunk {i} missing for upload {upload_id}")
+                async with aiofiles.open(chunk_path, "rb") as chunk_file:
+                    content = await chunk_file.read()
+                    await combined_file.write(content)
+                os.remove(chunk_path)
+        
+        async with aiofiles.open(combined_path, "rb") as f:
+            content = await f.read()
+        
+        os.remove(combined_path)
+        return content
 
 @app.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
-    logger.info("Start processing...")
-
-    if not file.filename.endswith('.xlsx'):
+async def upload_file(
+    chunk: UploadFile = File(None),
+    uploadId: str = Form(...),
+    chunkIndex: str = Form(None),
+    totalChunks: str = Form(...),
+    fileName: str = Form(...),
+    complete: bool = Query(False)
+):
+    logger.info(f"Processing upload {uploadId} - Chunk {chunkIndex if chunkIndex else 'complete'}")
+    
+    if not fileName.endswith('.xlsx'):
         raise HTTPException(400, detail="Invalid file type. Please upload .xlsx")
 
     try:
-        logger.info(f"Processing file: {file.filename}")
-
-        # Read file in chunks instead of loading entire content into memory
-        file_content = BytesIO(await file.read())
-        df = pd.read_excel(file_content)  # Use pandas to read directly from BytesIO
-
-        logger.info("Start processing")
-        result = process_bidventor(df)
-
-        if result['success']:
-            return result
+        if not complete:
+            if not chunk or not chunkIndex:
+                raise HTTPException(400, detail="Chunk and chunkIndex are required for upload")
+            chunk_path = await save_chunk_temp(uploadId, chunkIndex, chunk)
+            return {"message": f"Chunk {chunkIndex} received for upload {uploadId}"}
         else:
-            logger.error(f"Processing error: {result['error']}")
-            raise HTTPException(400, detail=result['error'])
+            content = await combine_chunks(uploadId, int(totalChunks), fileName)
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                executor,
+                process_bidventor,
+                content
+            )
+
+            if result['success']:
+                chunk_locks.pop(uploadId, None)
+                # remove the temp file
+                for file in TEMP_DIR.glob(f"{uploadId}*"):
+                    if file.exists():
+                        file.unlink()
+                return result
+            else:
+                logger.error(f"Processing error: {result['error']}")
+                raise HTTPException(400, detail=result['error'])
 
     except Exception as e:
-        logger.error(f"Unhandled exception: {str(e)}", exc_info=True)
+        logger.error(f"Unhandled exception for upload {uploadId}: {str(e)}", exc_info=True)
+        if uploadId in chunk_locks:
+            async with chunk_locks[uploadId]:
+                for file in TEMP_DIR.glob(f"{uploadId}*"):
+                    if file.exists():
+                        file.unlink()
+            chunk_locks.pop(uploadId, None)
         raise HTTPException(500, detail=str(e))
 
-
+@app.on_event("shutdown")
+async def cleanup():
+    shutil.rmtree(TEMP_DIR, ignore_errors=True)
+    executor.shutdown()
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

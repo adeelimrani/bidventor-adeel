@@ -19,42 +19,109 @@ export default function LandingPage() {
   const [downloadUrlPdf, setDownloadUrlPdf] = useState("");
   const [success, setSuccess] = useState(false);
   const [file, setfile] = useState(false);
-  const handleSubmit = async (e:any) => {
+
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
     if (!selectedFile) return;
 
-    const formData = new FormData();
-    formData.append('file', selectedFile);
     setfile(true);
     setLoading(true);
     setError(null);
 
-    try {
-      const response = await fetch('https://babend-adeel.replit.app/upload', {
-        method: 'POST',
-        body: formData,
-      });
+    const CHUNK_SIZE = 25 * 1024 * 1024; // 25MB chunks
+    const fileSize = selectedFile.size;
+    const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
+    
+    const uploadId = `${Date.now()}-${Math.random().toString(36).substring(2)}-${navigator.userAgent.substring(0, 10)}`;
 
-      const data = await response.json();
-      console.log(data);
-      
-      if (data) {
-        setFiles(data.files);
-        setDownloadUrl(data.files['Amazon_Upload.xlsx']);
-        setDownloadUrlPdf(data.files['Impact_Report.pdf']);
-        toast.success('File uploaded successfully');
-      }
+    try {
+        const concurrencyLimit = 8;
+        const chunkPromises = [];
+
+        for (let i = 0; i < totalChunks; i++) {
+            const start = i * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, fileSize);
+            const chunk = selectedFile.slice(start, end);
+
+            const formData = new FormData();
+            formData.append('chunk', chunk);
+            formData.append('uploadId', uploadId);
+            formData.append('chunkIndex', i.toString());
+            formData.append('totalChunks', totalChunks.toString());
+            formData.append('fileName', selectedFile.name);
+
+            const uploadChunk = async () => {
+                try {
+                    const response = await fetch('https://babend-adeel.replit.app/upload', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`Chunk ${i + 1} failed: ${response.status} - ${errorText}`);
+                    }
+
+                    const data = await response.json();
+                    console.log(`Chunk ${i} response:`, data);
+                    // setProgress(((chunkPromises.length + 1) / totalChunks) * 100);
+                } catch (chunkError) {
+                    console.error(`Chunk ${i} upload failed:`, chunkError);
+                    throw chunkError;
+                }
+            };
+
+            chunkPromises.push(uploadChunk());
+
+            if (chunkPromises.length >= concurrencyLimit) {
+                await Promise.race(chunkPromises);
+            }
+        }
+
+        await Promise.all(chunkPromises);
+
+        // Final request as POST with minimal form data
+        const finalFormData = new FormData();
+        finalFormData.append('uploadId', uploadId);
+        finalFormData.append('totalChunks', totalChunks.toString());
+        finalFormData.append('fileName', selectedFile.name);
+
+        const finalResponse = await fetch('https://babend-adeel.replit.app/upload?complete=true', {
+            method: 'POST',
+            body: finalFormData,
+            headers: {
+                'Accept': 'application/json',
+            },
+        });
+
+        if (!finalResponse.ok) {
+            const errorText = await finalResponse.text();
+            throw new Error(`Final request failed: ${finalResponse.status} - ${errorText}`);
+        }
+
+        const data = await finalResponse.json();
+        console.log('Final response:', data);
+
+        if (data) {
+            setFiles(data.files);
+            setDownloadUrl(data.files['Amazon_Upload.xlsx']);
+            setDownloadUrlPdf(data.files['Impact_Report.pdf']);
+            toast.success('File uploaded successfully');
+        }
+
     } catch (err) {
-      //@ts-ignore
-      toast.error(err.message);
-      console.log(err);
-      
-      //@ts-ignore
-      setError(err.message);
+        console.error('Upload error:', err);
+        toast.error(`Upload failed: ${err.message}`);
+        setError(err.message);
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+};
+
+
   
   return (
     <div className="flex flex-col justify-center items-center mx-auto min-h-screen md:lg:w-max">
